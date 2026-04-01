@@ -125,7 +125,24 @@
       "Bash(docker-compose down:*)",
       "Bash(git init:*)",
       "Bash(git config:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:wan.video)",
+      "WebFetch(domain:humanaigc.github.io)",
+      "Bash(docker-compose logs:*)",
+      "Bash(curl -s \"http://localhost:8000/api/projects/d7e170ea-ccec-4c9b-b028-ecbcd5dbffb6\")",
+      "Bash(curl -s -X POST \"http://localhost:8000/api/projects/d7e170ea-ccec-4c9b-b028-ecbcd5dbffb6/script\" -H \"Content-Type: application/json\")",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s -X POST http://localhost:8000/api/projects/60ecc319-cd40-4d78-9d01-d2ec3dafd63e/script -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/projects/ae89c67b-5124-4639-823e-e137b96911e4/script -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(curl -s http://localhost:8000/api/projects/ae89c67b-5124-4639-823e-e137b96911e4)",
+      "Bash(curl -s -X POST http://localhost:8000/api/projects/ae89c67b-5124-4639-823e-e137b96911e4/generate -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(curl -s http://host.docker.internal:8188/system_stats)"
     ],
     "additionalDirectories": [
       "\\tmp"

@@ -12,9 +12,18 @@ from .base import BaseHandler
 
 log = structlog.get_logger()
 
-MODEL_REGISTRY = {
-    "qwen3.5-7b-instruct": f"{settings.models_dir}/llm/qwen3.5-7b-instruct",
-}
+
+def _build_model_registry() -> dict[str, str]:
+    registry = {
+        "qwen3.5-7b-instruct": f"{settings.models_dir}/llm/qwen3.5-7b-instruct",
+        "qwen2.5-7b-instruct-awq": f"{settings.models_dir}/llm/Qwen2.5-7B-Instruct-AWQ",
+    }
+    registry[settings.llm_default_model] = settings.llm_default_path
+    registry[settings.llm_planner_model] = settings.llm_planner_path
+    return registry
+
+
+MODEL_REGISTRY = _build_model_registry()
 
 
 class QwenChatHandler(BaseHandler):
@@ -108,8 +117,13 @@ class QwenChatHandler(BaseHandler):
         if negative_prompt:
             user_prompt += f"\nAvoid: {negative_prompt}"
 
+        system_prompt = (
+            params.get("system_prompt")
+            or "You are SYAUAI, a helpful creative studio assistant."
+        )
+
         messages = [
-            {"role": "system", "content": "You are SYAUAI, a helpful creative studio assistant."},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
         rendered = tokenizer.apply_chat_template(

@@ -7,6 +7,7 @@ const navItems = [
   { href: "/generate", label: "Image" },
   { href: "/video", label: "Video" },
   { href: "/chat", label: "Chat" },
+  { href: "/studio", label: "Studio" },
   { href: "/history", label: "History" },
 ];
 

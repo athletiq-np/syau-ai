@@ -7,7 +7,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
-from api.routes import jobs, models
+from api.routes import jobs, models, projects
 from websocket.manager import manager
 from websocket.pubsub import listen_for_job_events
 from services.job_service import enrich_with_urls
@@ -84,6 +84,7 @@ app.add_middleware(
 
 app.include_router(jobs.router)
 app.include_router(models.router)
+app.include_router(projects.router, prefix="/api")
 
 
 @app.get("/health")
@@ -144,3 +145,50 @@ async def ws_job(websocket: WebSocket, job_id: str):
         pass
     finally:
         manager.disconnect(job_id, websocket)
+
+
+@app.websocket("/ws/projects/{project_id}")
+async def ws_project(websocket: WebSocket, project_id: str):
+    """WebSocket for project-level events (generation progress, shot status, etc.)"""
+    from core.redis import get_redis
+    import json as json_module
+
+    await websocket.accept()
+    redis = get_redis()
+    pubsub = redis.pubsub()
+    channel = f"project_events:{project_id}"
+    pubsub.subscribe(channel)
+
+    try:
+        # Send initial project state
+        db = SessionLocal()
+        try:
+            from uuid import UUID
+            from schemas.project import ProjectDetailResponse
+            project = db.query(__import__("models.project", fromlist=["Project"]).Project).filter(
+                __import__("models.project", fromlist=["Project"]).Project.id == UUID(project_id)
+            ).first()
+            if project:
+                await websocket.send_json({
+                    "type": "init",
+                    "project_id": project_id,
+                    "status": project.status,
+                    "total_shots": project.total_shots,
+                })
+        finally:
+            db.close()
+
+        # Listen for project events from Redis pub/sub
+        for message in pubsub.listen():
+            if message["type"] == "message":
+                try:
+                    data = json_module.loads(message["data"])
+                    await websocket.send_json(data)
+                except Exception as e:
+                    log.warning("ws_project_message_error", error=str(e))
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        pubsub.unsubscribe(channel)
+        pubsub.close()

@@ -23,6 +23,7 @@ celery_app.conf.update(
         "workers.image_worker.*": {"queue": "image"},
         "workers.video_worker.*": {"queue": "video"},
         "workers.chat_worker.*": {"queue": "chat"},
+        "workers.studio_worker.*": {"queue": "studio"},
     },
 )
 
@@ -30,4 +31,4 @@ celery_app.conf.update(
 celery_app.autodiscover_tasks(["workers"])
 
 # Explicitly import task modules
-from workers import image_worker, video_worker, chat_worker  # noqa: F401, E402
+from workers import image_worker, video_worker, chat_worker, studio_worker  # noqa: F401, E402

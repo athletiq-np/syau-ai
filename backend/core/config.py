@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     inference_timeout_seconds: int = 180
     chat_max_new_tokens: int = 512
     chat_temperature: float = 0.7
+    llm_default_model: str = "qwen3.5-7b-instruct"
+    llm_default_path: str = "/data/models/llm/qwen3.5-7b-instruct"
+    llm_planner_model: str = "qwen2.5-7b-instruct-awq"
+    llm_planner_path: str = "/data/models/llm/Qwen2.5-7B-Instruct-AWQ"
     comfyui_url: Optional[str] = None
     stale_pending_seconds: int = 300
     stale_running_seconds: int = 3600

@@ -153,6 +153,23 @@ services:
     volumes:
       - ./backend:/app
 
+  worker-studio:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    command: celery -A workers.celery_app worker -Q studio -c 1 -n studio@%h --loglevel=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
 networks:
   default:
     name: syauai-network

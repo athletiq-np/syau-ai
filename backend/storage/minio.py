@@ -103,3 +103,12 @@ def download_text(key: str, encoding: str = "utf-8") -> str:
     response = client.get_object(Bucket=settings.minio_bucket, Key=key)
     body = response["Body"].read()
     return body.decode(encoding)
+
+
+def download_bytes(key: str) -> bytes:
+    """Read a binary object from MinIO."""
+    client = get_s3_client()
+    response = client.get_object(Bucket=settings.minio_bucket, Key=key)
+    body = response["Body"].read()
+    log.info("minio_download", key=key, size=len(body))
+    return body

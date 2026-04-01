@@ -1,6 +1,12 @@
 export default function Home() {
   const cards = [
     {
+      href: "/studio",
+      label: "Studio",
+      title: "Create cinematic films",
+      body: "Script to shots to video. Break your script into shots, generate each with AI, and stitch into a complete film with character consistency.",
+    },
+    {
       href: "/generate",
       label: "Image",
       title: "Generate mock images",

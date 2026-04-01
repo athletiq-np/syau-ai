@@ -59,6 +59,77 @@ export interface JobListResponse {
   page_size: number;
 }
 
+export interface Character {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string;
+  reference_url: string | null;
+  created_at: string;
+}
+
+export interface Shot {
+  id: string;
+  scene_id: string;
+  project_id: string;
+  order_index: number;
+  shot_type: "t2v" | "i2v";
+  status: "pending" | "running" | "done" | "failed";
+  prompt: string;
+  negative_prompt: string;
+  duration_frames: number;
+  width: number;
+  height: number;
+  seed: number | null;
+  character_ids: string[];
+  output_url: string | null;
+  created_at: string;
+  completed_at: string | null;
+  error: string | null;
+}
+
+export interface Scene {
+  id: string;
+  project_id: string;
+  order_index: number;
+  title: string;
+  description: string;
+  shots: Shot[];
+  created_at: string;
+}
+
+export interface Project {
+  id: string;
+  title: string;
+  description: string;
+  status: "draft" | "processing" | "done" | "failed";
+  total_shots: number;
+  output_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectDetail {
+  id: string;
+  title: string;
+  description: string;
+  status: "draft" | "processing" | "done" | "failed";
+  script: string;
+  total_shots: number;
+  output_url: string | null;
+  characters: Character[];
+  scenes: Scene[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectListResponse {
+  items: Project[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -72,6 +143,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // --- Jobs API ---
   createJob: (data: JobCreate) =>
     request<{ job_id: string; status: string }>("/jobs", {
       method: "POST",
@@ -93,4 +165,37 @@ export const api = {
     fetch(`${API_BASE}/jobs/${id}`, { method: "DELETE" }),
 
   getModels: () => request<ModelsResponse>("/models"),
+
+  // --- Projects API ---
+  createProject: (data: { title: string; description: string; script: string }) =>
+    request<Project>("/projects", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listProjects: (params?: { page?: number; page_size?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.page_size) qs.set("page_size", String(params.page_size));
+    return request<ProjectListResponse>(`/projects?${qs}`);
+  },
+
+  getProject: (id: string) => request<ProjectDetail>(`/projects/${id}`),
+
+  updateProject: (id: string, data: { title?: string; description?: string; script?: string }) =>
+    request<Project>(`/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteProject: (id: string) =>
+    fetch(`${API_BASE}/projects/${id}`, { method: "DELETE" }),
+
+  analyzeScript: (projectId: string) =>
+    request<{ scenes: any[] }>(`/projects/${projectId}/script`, {
+      method: "POST",
+    }),
+
+  generateProject: (projectId: string) =>
+    fetch(`${API_BASE}/projects/${projectId}/generate`, { method: "POST" }),
 };

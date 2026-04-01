@@ -1,0 +1,29 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+# Install CPU/base deps from requirements.txt first
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install GPU inference deps (already installed on GPU server venv, but include for Docker)
+RUN pip install --no-cache-dir \
+    torch>=2.1 \
+    diffusers>=0.27 \
+    transformers>=4.40 \
+    accelerate \
+    Pillow
+
+COPY . .
+
+# Workers are started via docker-compose.worker.yml command
+# e.g.: celery -A workers.celery_app worker -Q image -c 1

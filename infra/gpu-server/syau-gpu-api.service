@@ -1,0 +1,15 @@
+[Unit]
+Description=SYAUAI GPU Inference API
+After=network.target
+
+[Service]
+Type=simple
+User=ekduiteen
+WorkingDirectory=/opt/syauai
+EnvironmentFile=/opt/syauai/gpu_server/.env
+ExecStart=/opt/syauai/gpu_server/.venv/bin/python -m uvicorn gpu_server.app:app --host 0.0.0.0 --port 8100
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

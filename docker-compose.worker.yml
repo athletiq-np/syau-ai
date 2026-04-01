@@ -1,0 +1,63 @@
+# Run this on the GPU server only.
+# Prerequisites: pip install -r backend/requirements.txt on the GPU server.
+# ComfyUI must be running: bash infra/scripts/start-comfyui.sh
+
+services:
+  worker-image:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    env_file: .env
+    command: celery -A workers.celery_app worker -Q image -c 1 -n image@%h --loglevel=info
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /data/models:/data/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  worker-video:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    env_file: .env
+    command: celery -A workers.celery_app worker -Q video -c 1 -n video@%h --loglevel=info
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /data/models:/data/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  worker-chat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    env_file: .env
+    command: celery -A workers.celery_app worker -Q chat -c 1 -n chat@%h --loglevel=info
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /data/models:/data/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

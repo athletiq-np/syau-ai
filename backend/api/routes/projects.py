@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from api.deps import get_db
 from schemas.project import (
-    ProjectCreate, ProjectResponse, ProjectDetailResponse, ProjectListResponse,
+    ProjectCreate, ProjectUpdate, ProjectResponse, ProjectDetailResponse, ProjectListResponse,
     CharacterCreate, CharacterResponse, ShotResponse, SceneResponse,
     ScriptAnalysisResponse
 )
@@ -101,19 +101,19 @@ def get_project(
 @router.patch("/{project_id}", response_model=ProjectResponse)
 def update_project(
     project_id: UUID,
-    req: ProjectCreate,
+    req: ProjectUpdate,
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
-    """Update project fields"""
+    """Update project fields (all optional)"""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    if req.title:
+    if req.title is not None:
         project.title = req.title
-    if req.description:
+    if req.description is not None:
         project.description = req.description
-    if req.script:
+    if req.script is not None:
         project.script = req.script
     project.updated_at = datetime.now(timezone.utc)
 

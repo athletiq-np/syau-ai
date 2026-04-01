@@ -92,6 +92,13 @@ class ProjectCreate(BaseModel):
     script: str = Field(..., min_length=1)
 
 
+class ProjectUpdate(BaseModel):
+    """Schema for PATCH updates - all fields optional"""
+    title: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = Field(None, max_length=2000)
+    script: Optional[str] = Field(None, min_length=1)
+
+
 class ScriptAnalysisResponse(BaseModel):
     """Response from Qwen script analysis"""
     scenes: list[dict[str, Any]]  # Raw scene/shot data from LLM

@@ -142,7 +142,10 @@
       "Bash(curl -s -X POST http://localhost:8000/api/projects/ae89c67b-5124-4639-823e-e137b96911e4/script -H \"Content-Type: application/json\" -d '{}')",
       "Bash(curl -s http://localhost:8000/api/projects/ae89c67b-5124-4639-823e-e137b96911e4)",
       "Bash(curl -s -X POST http://localhost:8000/api/projects/ae89c67b-5124-4639-823e-e137b96911e4/generate -H \"Content-Type: application/json\" -d '{}')",
-      "Bash(curl -s http://host.docker.internal:8188/system_stats)"
+      "Bash(curl -s http://host.docker.internal:8188/system_stats)",
+      "Bash(ssh ekduiteen@ubuntu:*)",
+      "Bash(curl -s \"http://localhost:8000/api/planning/scene-parse?scene_text=Explorer%20enters%20dark%20ruin%20at%20night%20and%20discovers%20a%20glowing%20golden%20mandala\")",
+      "Bash(curl -s -X POST \"http://localhost:8000/api/planning/scene-parse?scene_text=Explorer%20enters%20dark%20ruin%20at%20night%20and%20discovers%20a%20glowing%20golden%20mandala\")"
     ],
     "additionalDirectories": [
       "\\tmp"

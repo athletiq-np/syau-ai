@@ -7,7 +7,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
-from api.routes import jobs, models, projects
+from api.routes import jobs, models, projects, planning
 from websocket.manager import manager
 from websocket.pubsub import listen_for_job_events
 from services.job_service import enrich_with_urls
@@ -85,6 +85,7 @@ app.add_middleware(
 app.include_router(jobs.router)
 app.include_router(models.router)
 app.include_router(projects.router, prefix="/api")
+app.include_router(planning.router)
 
 
 @app.get("/health")

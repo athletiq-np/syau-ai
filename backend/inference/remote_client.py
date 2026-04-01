@@ -64,16 +64,60 @@ def infer_image(*, model: str, prompt: str, negative_prompt: str, params: dict[s
 
 
 def infer_chat(*, model: str, prompt: str, negative_prompt: str, params: dict[str, Any]) -> dict[str, Any]:
+    """
+    Infer chat using either custom API or OpenAI-compatible API (vLLM).
+
+    First tries custom API format, falls back to OpenAI-compatible format for vLLM.
+    """
+    # Try custom API format first
+    try:
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "params": params,
+        }
+        data = _post("/infer/chat", payload)
+        return {
+            "text": data["text"],
+            "tokens_used": data.get("tokens_used", 0),
+        }
+    except Exception as e:
+        log.warning("custom_chat_api_failed", error=str(e))
+        # Fall back to OpenAI-compatible API (vLLM)
+        return infer_chat_openai_compatible(
+            model=model,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            params=params
+        )
+
+
+def infer_chat_openai_compatible(*, model: str, prompt: str, negative_prompt: str, params: dict[str, Any]) -> dict[str, Any]:
+    """Call OpenAI-compatible chat API (vLLM)."""
+    system_prompt = params.get("system_prompt", "You are a helpful assistant.")
+
     payload = {
         "model": model,
-        "prompt": prompt,
-        "negative_prompt": negative_prompt,
-        "params": params,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0,
+        "max_tokens": 500,
     }
-    data = _post("/infer/chat", payload)
+
+    data = _post("/chat/completions", payload)
+
+    # Extract text from OpenAI-compatible response format
+    if "choices" in data and len(data["choices"]) > 0:
+        text = data["choices"][0]["message"]["content"]
+    else:
+        text = data.get("text", "")
+
     return {
-        "text": data["text"],
-        "tokens_used": data.get("tokens_used", 0),
+        "text": text,
+        "tokens_used": data.get("usage", {}).get("completion_tokens", 0),
     }
 
 

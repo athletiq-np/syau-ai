@@ -1,3 +1,7 @@
+"use client";
+
+import { ApiStatus } from "@/components/api-status";
+
 export default function Home() {
   const cards = [
     {
@@ -36,6 +40,9 @@ export default function Home() {
     <div className="min-h-[calc(100vh-49px)] bg-[radial-gradient(circle_at_top,rgba(72,115,255,0.14),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_40%)]">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-6 py-14">
         <section className="max-w-3xl">
+          <div className="mb-4">
+            <ApiStatus />
+          </div>
           <div className="mb-4 inline-flex rounded-full border border-border bg-card/70 px-3 py-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">
             Phase 1 Studio
           </div>

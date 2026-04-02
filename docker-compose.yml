@@ -54,6 +54,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     depends_on:
@@ -111,6 +113,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: celery -A workers.celery_app worker -Q image -c 1 -n image@%h --loglevel=info
     depends_on:
       postgres:
@@ -131,6 +135,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: celery -A workers.celery_app worker -Q video -c 1 -n video@%h --loglevel=info
     depends_on:
       postgres:
@@ -151,6 +157,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: celery -A workers.celery_app worker -Q chat -c 1 -n chat@%h --loglevel=info
     depends_on:
       postgres:
@@ -171,6 +179,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: celery -A workers.celery_app worker -Q studio -c 1 -n studio@%h --loglevel=info
     depends_on:
       postgres:

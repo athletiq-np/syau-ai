@@ -1,0 +1,16 @@
+[Unit]
+Description=SYAU vLLM API Server
+After=network.target
+
+[Service]
+Type=simple
+User=ekduiteen
+WorkingDirectory=/home/ekduiteen
+ExecStart=/usr/bin/tmux new-session -d -s syau-vllm '/usr/bin/python3 -m vllm.entrypoints.openai.api_server --model /data/models/qwen2.5-awq --served-model-name qwen2.5-awq --host 0.0.0.0 --port 8100 --quantization awq --dtype float16 --gpu-memory-utilization 0.2 --max-model-len 1024 > /tmp/vllm-live.log 2>&1'
+ExecStop=/usr/bin/tmux kill-session -t syau-vllm
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

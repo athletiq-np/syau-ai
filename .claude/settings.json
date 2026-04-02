@@ -225,7 +225,8 @@
       "Bash(scp -P 41447 e:/Syau-ai/backend/services/script_analyzer.py ekduiteen@202.51.2.50:/home/ekduiteen/SYAUAI/backend/services/)",
       "Bash(curl -s -X POST http://202.51.2.50/api/projects/623d9b3c-e057-42d0-a42d-4ddeba056fca/shots/5331c2cc-201b-4d2a-a8b2-581ff38dfcaa/generate -H 'Authorization: Bearer syauai_dev_key_12345' -H 'Content-Type: application/json')",
       "Bash(curl -s -X POST http://202.51.2.50/api/projects/623d9b3c-e057-42d0-a42d-4ddeba056fca/generate -H 'Authorization: Bearer syauai_dev_key_12345' -H 'Content-Type: application/json')",
-      "Bash(curl -s http://202.51.2.50/api/projects/623d9b3c-e057-42d0-a42d-4ddeba056fca -H 'Authorization: Bearer syauai_dev_key_12345')"
+      "Bash(curl -s http://202.51.2.50/api/projects/623d9b3c-e057-42d0-a42d-4ddeba056fca -H 'Authorization: Bearer syauai_dev_key_12345')",
+      "Bash(curl -s http://202.51.2.50/studio)"
     ],
     "additionalDirectories": [
       "\\tmp"

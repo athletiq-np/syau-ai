@@ -31,9 +31,12 @@ export default function ProjectDetailPage({ params }: Props) {
 
     const connectWebSocket = () => {
       try {
-        const wsUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost/ws")
+        const wsUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "/ws")
           .replace(/\/$/, "");
-        const fullUrl = `${wsUrl}/projects/${params.project_id}`;
+        // Convert http/https protocol to ws/wss for WebSocket
+        const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = typeof window !== 'undefined' ? window.location.host : 'localhost';
+        const fullUrl = `${protocol}//${host}${wsUrl}/projects/${params.project_id}`;
         console.log("Connecting to WebSocket:", fullUrl);
 
         ws = new WebSocket(fullUrl);
@@ -157,9 +160,7 @@ export default function ProjectDetailPage({ params }: Props) {
     if (!confirm("Delete this shot?")) return;
     try {
       setError(null);
-      await fetch(`http://localhost/api/projects/${params.project_id}/shots/${shotId}`, {
-        method: "DELETE",
-      });
+      await api.deleteShot(params.project_id, shotId);
       await loadProject();
     } catch (err) {
       console.error("Failed to delete shot:", err);
@@ -170,12 +171,7 @@ export default function ProjectDetailPage({ params }: Props) {
   async function handleUploadImage(sceneId: string, file: File) {
     try {
       setError(null);
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`http://localhost/api/projects/${params.project_id}/scenes/${sceneId}/reference-image`, {
-        method: "POST",
-        body: formData,
-      });
+      const res = await api.uploadReferenceImage(params.project_id, sceneId, file);
       if (res.ok) {
         await loadProject();
       }

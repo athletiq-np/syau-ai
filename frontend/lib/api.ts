@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "syauai_dev_key_12345"; // Default for dev
 
 /**
@@ -246,4 +246,20 @@ export const api = {
     request<{ status: string; project_id: string; shot_count: number; message: string }>(`/projects/${projectId}/generate`, {
       method: "POST",
     }),
+
+  deleteShot: (projectId: string, shotId: string) =>
+    fetch(`/api/projects/${projectId}/shots/${shotId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${API_KEY}` },
+    }),
+
+  uploadReferenceImage: (projectId: string, sceneId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return fetch(`/api/projects/${projectId}/scenes/${sceneId}/reference-image`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${API_KEY}` },
+      body: formData,
+    });
+  },
 };

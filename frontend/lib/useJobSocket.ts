@@ -2,13 +2,19 @@
 import { useEffect, useRef, useState } from "react";
 import type { Job } from "./api";
 
-const WS_BASE = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000/ws";
-
 export type JobUpdate = Partial<Job> & {
   job_id?: string;
   progress?: number;
   message?: string;
 };
+
+function getWebSocketUrl(path: string): string {
+  if (typeof window === "undefined") return `ws://localhost/ws${path}`;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const host = window.location.host;
+  const wsBase = (process.env.NEXT_PUBLIC_WS_URL ?? "/ws").replace(/\/$/, "");
+  return `${protocol}//${host}${wsBase}${path}`;
+}
 
 export function useJobSocket(jobId: string | null, onUpdate: (update: JobUpdate) => void) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -17,7 +23,7 @@ export function useJobSocket(jobId: string | null, onUpdate: (update: JobUpdate)
   useEffect(() => {
     if (!jobId) return;
 
-    const ws = new WebSocket(`${WS_BASE}/jobs/${jobId}`);
+    const ws = new WebSocket(getWebSocketUrl(`/jobs/${jobId}`));
     wsRef.current = ws;
 
     ws.onopen = () => setConnected(true);

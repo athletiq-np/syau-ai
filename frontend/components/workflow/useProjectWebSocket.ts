@@ -37,9 +37,12 @@ export function useProjectWebSocket(
 
     function connectWebSocket() {
       try {
-        const wsUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost/ws")
+        const wsUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "/ws")
           .replace(/\/$/, "");
-        const fullUrl = `${wsUrl}/projects/${projectId}`;
+        // Convert http/https protocol to ws/wss for WebSocket
+        const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = typeof window !== 'undefined' ? window.location.host : 'localhost';
+        const fullUrl = `${protocol}//${host}${wsUrl}/projects/${projectId}`;
 
         wsRef = new WebSocket(fullUrl);
 

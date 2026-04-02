@@ -32,5 +32,10 @@ class Settings(BaseSettings):
     stale_pending_seconds: int = 300
     stale_running_seconds: int = 3600
 
+    # API Authentication
+    api_key_enabled: bool = True
+    api_key_dev: str = "syauai_dev_key_12345"
+    api_key_test: str = "syauai_test_key_67890"
+
 
 settings = Settings()

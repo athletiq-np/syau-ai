@@ -100,7 +100,7 @@ def analyze_script(project_id: UUID, db: Session) -> dict[str, Any]:
 
     if settings.inference_mode.lower() == "remote":
         result = remote_client.infer_chat(
-            model="qwen3.5-7b-instruct",
+            model="/data/models/qwen2.5-awq",
             prompt=prompt,
             negative_prompt="",
             params={

@@ -65,6 +65,9 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - ./.docker-data/models:/data/models
+      - ./.docker-data/outputs:/data/outputs
+      - ./.docker-data/cache:/data/cache
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -118,6 +121,9 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - ./.docker-data/models:/data/models
+      - ./.docker-data/outputs:/data/outputs
+      - ./.docker-data/cache:/data/cache
 
   worker-video:
     build:
@@ -135,6 +141,9 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - ./.docker-data/models:/data/models
+      - ./.docker-data/outputs:/data/outputs
+      - ./.docker-data/cache:/data/cache
 
   worker-chat:
     build:
@@ -152,6 +161,9 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - ./.docker-data/models:/data/models
+      - ./.docker-data/outputs:/data/outputs
+      - ./.docker-data/cache:/data/cache
 
   worker-studio:
     build:
@@ -169,6 +181,9 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - ./.docker-data/models:/data/models
+      - ./.docker-data/outputs:/data/outputs
+      - ./.docker-data/cache:/data/cache
 
 networks:
   default:

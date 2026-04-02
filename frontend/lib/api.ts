@@ -1,4 +1,15 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "syauai_dev_key_12345"; // Default for dev
+
+/**
+ * Auth error handler - can be used globally
+ */
+export class AuthError extends Error {
+  constructor(message: string, public statusCode: number = 403) {
+    super(message);
+    this.name = "AuthError";
+  }
+}
 
 export interface JobParams {
   width?: number;
@@ -131,14 +142,34 @@ export interface ProjectListResponse {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers || {});
+
+  // Add default headers
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  // Add authorization header with API key
+  if (!headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${API_KEY}`);
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers,
   });
+
   if (!res.ok) {
     const body = await res.text();
+
+    // Handle auth errors specifically
+    if (res.status === 403) {
+      throw new AuthError(`API Authentication Failed: ${body}`, 403);
+    }
+
     throw new Error(`API ${res.status}: ${body}`);
   }
+
   return res.json();
 }
 
@@ -162,7 +193,10 @@ export const api = {
   },
 
   cancelJob: (id: string) =>
-    fetch(`${API_BASE}/jobs/${id}`, { method: "DELETE" }),
+    fetch(`${API_BASE}/jobs/${id}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${API_KEY}` },
+    }),
 
   getModels: () => request<ModelsResponse>("/models"),
 
@@ -188,8 +222,20 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  updateShot: (projectId: string, shotId: string, data: { prompt?: string; negative_prompt?: string }) => {
+    const qs = new URLSearchParams();
+    if (data.prompt !== undefined) qs.set("prompt", data.prompt);
+    if (data.negative_prompt !== undefined) qs.set("negative_prompt", data.negative_prompt);
+    return request<Shot>(`/projects/${projectId}/shots/${shotId}?${qs.toString()}`, {
+      method: "PATCH",
+    });
+  },
+
   deleteProject: (id: string) =>
-    fetch(`${API_BASE}/projects/${id}`, { method: "DELETE" }),
+    fetch(`${API_BASE}/projects/${id}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${API_KEY}` },
+    }),
 
   analyzeScript: (projectId: string) =>
     request<{ scenes: any[] }>(`/projects/${projectId}/script`, {
@@ -197,5 +243,7 @@ export const api = {
     }),
 
   generateProject: (projectId: string) =>
-    fetch(`${API_BASE}/projects/${projectId}/generate`, { method: "POST" }),
+    request<{ status: string; project_id: string; shot_count: number; message: string }>(`/projects/${projectId}/generate`, {
+      method: "POST",
+    }),
 };

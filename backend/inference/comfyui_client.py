@@ -34,17 +34,24 @@ class ComfyUIClient:
         self,
         prompt: str,
         negative_prompt: str = "",
-        num_frames: int = 81,
-        height: int = 640,
-        width: int = 640,
+        num_frames: int = 25,
+        height: int = 384,
+        width: int = 384,
         seed: int = 0,
         on_progress: Optional[Callable[[int, str], None]] = None,
     ) -> dict[str, Any]:
         """Generate video via Wan 2.2 T2V LightX2V 4-step dual-UNet."""
+        # Clear GPU memory before generation
+        try:
+            import torch
+            torch.cuda.empty_cache()
+        except:
+            pass
+
         workflow = {
-            # CLIP / text encoder
+            # CLIP / text encoder (CPU offloading enabled)
             "1": {
-                "inputs": {"clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan", "device": "default"},
+                "inputs": {"clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan", "device": "cpu"},
                 "class_type": "CLIPLoader",
             },
             "2": {
@@ -82,22 +89,22 @@ class ComfyUIClient:
                 "inputs": {"width": width, "height": height, "length": num_frames, "batch_size": 1},
                 "class_type": "EmptyHunyuanLatentVideo",
             },
-            # Stage 1: high-noise model, steps 0→2
+            # Stage 1: high-noise model, steps 0→1
             "12": {
                 "inputs": {
-                    "add_noise": "enable", "noise_seed": seed, "steps": 4, "cfg": 1,
+                    "add_noise": "enable", "noise_seed": seed, "steps": 2, "cfg": 1,
                     "sampler_name": "euler", "scheduler": "simple",
-                    "start_at_step": 0, "end_at_step": 2, "return_with_leftover_noise": "enable",
+                    "start_at_step": 0, "end_at_step": 1, "return_with_leftover_noise": "enable",
                     "model": ["9", 0], "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["11", 0],
                 },
                 "class_type": "KSamplerAdvanced",
             },
-            # Stage 2: low-noise model, steps 2→4
+            # Stage 2: low-noise model, steps 1→2
             "13": {
                 "inputs": {
-                    "add_noise": "disable", "noise_seed": 0, "steps": 4, "cfg": 1,
+                    "add_noise": "disable", "noise_seed": 0, "steps": 2, "cfg": 1,
                     "sampler_name": "euler", "scheduler": "simple",
-                    "start_at_step": 2, "end_at_step": 4, "return_with_leftover_noise": "disable",
+                    "start_at_step": 1, "end_at_step": 2, "return_with_leftover_noise": "disable",
                     "model": ["10", 0], "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["12", 0],
                 },
                 "class_type": "KSamplerAdvanced",
@@ -121,9 +128,9 @@ class ComfyUIClient:
         image_filename: str,
         prompt: str,
         negative_prompt: str = "",
-        num_frames: int = 81,
-        height: int = 640,
-        width: int = 640,
+        num_frames: int = 25,
+        height: int = 384,
+        width: int = 384,
         seed: int = 0,
         on_progress: Optional[Callable[[int, str], None]] = None,
     ) -> dict[str, Any]:
@@ -131,12 +138,19 @@ class ComfyUIClient:
         Generate video from a start image via Wan 2.2 I2V LightX2V 4-step.
         `image_filename` must already be uploaded to ComfyUI's input folder.
         """
+        # Clear GPU memory before generation
+        try:
+            import torch
+            torch.cuda.empty_cache()
+        except:
+            pass
+
         workflow = {
             # Load start image
             "1": {"inputs": {"image": image_filename}, "class_type": "LoadImage"},
-            # CLIP / text encoder
+            # CLIP / text encoder (CPU offloading enabled)
             "2": {
-                "inputs": {"clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan", "device": "default"},
+                "inputs": {"clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan", "device": "cpu"},
                 "class_type": "CLIPLoader",
             },
             "3": {"inputs": {"text": prompt, "clip": ["2", 0]}, "class_type": "CLIPTextEncode"},
@@ -174,22 +188,22 @@ class ComfyUIClient:
             },
             "11": {"inputs": {"shift": 5.0, "model": ["9", 0]}, "class_type": "ModelSamplingSD3"},
             "12": {"inputs": {"shift": 5.0, "model": ["10", 0]}, "class_type": "ModelSamplingSD3"},
-            # Stage 1: high-noise, steps 0→2
+            # Stage 1: high-noise, steps 0→1
             "13": {
                 "inputs": {
-                    "add_noise": "enable", "noise_seed": seed, "steps": 4, "cfg": 1,
+                    "add_noise": "enable", "noise_seed": seed, "steps": 2, "cfg": 1,
                     "sampler_name": "euler", "scheduler": "simple",
-                    "start_at_step": 0, "end_at_step": 2, "return_with_leftover_noise": "enable",
+                    "start_at_step": 0, "end_at_step": 1, "return_with_leftover_noise": "enable",
                     "model": ["11", 0], "positive": ["6", 0], "negative": ["6", 1], "latent_image": ["6", 2],
                 },
                 "class_type": "KSamplerAdvanced",
             },
-            # Stage 2: low-noise, steps 2→4
+            # Stage 2: low-noise, steps 1→2
             "14": {
                 "inputs": {
-                    "add_noise": "disable", "noise_seed": 0, "steps": 4, "cfg": 1,
+                    "add_noise": "disable", "noise_seed": 0, "steps": 2, "cfg": 1,
                     "sampler_name": "euler", "scheduler": "simple",
-                    "start_at_step": 2, "end_at_step": 4, "return_with_leftover_noise": "disable",
+                    "start_at_step": 1, "end_at_step": 2, "return_with_leftover_noise": "disable",
                     "model": ["12", 0], "positive": ["6", 0], "negative": ["6", 1], "latent_image": ["13", 0],
                 },
                 "class_type": "KSamplerAdvanced",

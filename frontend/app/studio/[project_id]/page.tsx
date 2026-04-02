@@ -24,35 +24,63 @@ export default function ProjectDetailPage({ params }: Props) {
     loadProject();
   }, [params.project_id]);
 
-  // WebSocket for project generation progress
+  // WebSocket for project generation progress (optional - falls back to polling)
   useEffect(() => {
-    const wsUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost/ws")
-      .replace(/\/$/, "");
-    const ws = new WebSocket(`${wsUrl}/projects/${params.project_id}`);
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
 
-    ws.onmessage = (event) => {
+    const connectWebSocket = () => {
       try {
-        const data = JSON.parse(event.data);
-        setGenerationProgress((prev) => ({
-          ...prev,
-          [data.type]: data,
-        }));
+        const wsUrl = (process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost/ws")
+          .replace(/\/$/, "");
+        const fullUrl = `${wsUrl}/projects/${params.project_id}`;
+        console.log("Connecting to WebSocket:", fullUrl);
 
-        // Reload project when shots complete or stitch finishes
-        if (data.type === "shot_complete" || data.type === "stitch_complete") {
-          setTimeout(() => loadProject(), 500);
-        }
+        ws = new WebSocket(fullUrl);
+
+        ws.onopen = () => {
+          console.log("WebSocket connected");
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            setGenerationProgress((prev) => ({
+              ...prev,
+              [data.type]: data,
+            }));
+
+            // Reload project when shots complete or stitch finishes
+            if (data.type === "shot_complete" || data.type === "stitch_complete") {
+              setTimeout(() => loadProject(), 500);
+            }
+          } catch (err) {
+            console.error("Failed to parse WebSocket message:", err);
+          }
+        };
+
+        ws.onerror = (err) => {
+          console.error("WebSocket error:", err);
+        };
+
+        ws.onclose = () => {
+          console.log("WebSocket closed");
+        };
       } catch (err) {
-        console.error("Failed to parse WebSocket message:", err);
+        console.error("Failed to create WebSocket:", err);
       }
     };
 
-    ws.onerror = (err) => {
-      console.error("WebSocket error:", err);
-    };
+    // Connect with a small delay to ensure component is fully mounted
+    reconnectTimeout = setTimeout(() => {
+      connectWebSocket();
+    }, 100);
 
     return () => {
-      ws.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.close();
+      }
     };
   }, [params.project_id]);
 
@@ -114,6 +142,49 @@ export default function ProjectDetailPage({ params }: Props) {
     }
   }
 
+  async function handleGenerateShot(shotId: string) {
+    try {
+      setError(null);
+      const res = await api.generateProject(params.project_id);
+      console.log("Shot generation started:", res);
+    } catch (err) {
+      console.error("Failed to start shot generation:", err);
+      setError(err instanceof Error ? err.message : "Failed to generate shot");
+    }
+  }
+
+  async function handleDeleteShot(shotId: string) {
+    if (!confirm("Delete this shot?")) return;
+    try {
+      setError(null);
+      await fetch(`http://localhost/api/projects/${params.project_id}/shots/${shotId}`, {
+        method: "DELETE",
+      });
+      await loadProject();
+    } catch (err) {
+      console.error("Failed to delete shot:", err);
+      setError("Failed to delete shot");
+    }
+  }
+
+  async function handleUploadImage(sceneId: string, file: File) {
+    try {
+      setError(null);
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`http://localhost/api/projects/${params.project_id}/scenes/${sceneId}/reference-image`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        await loadProject();
+      }
+    } catch (err) {
+      console.error("Failed to upload image:", err);
+      setError("Failed to upload image");
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 flex items-center justify-center">
@@ -143,12 +214,20 @@ export default function ProjectDetailPage({ params }: Props) {
       {/* Header */}
       <div className="border-b border-slate-800 bg-slate-900/50 backdrop-blur">
         <div className="mx-auto max-w-7xl px-6 py-6">
-          <button
-            onClick={() => router.push("/studio")}
-            className="text-cyan-400 hover:text-cyan-300 text-sm mb-4"
-          >
-            ← Back to Studio
-          </button>
+          <div className="flex justify-between items-start mb-4">
+            <button
+              onClick={() => router.push("/studio")}
+              className="text-cyan-400 hover:text-cyan-300 text-sm"
+            >
+              ← Back to Studio
+            </button>
+            <button
+              onClick={() => router.push(`/studio/${params.project_id}/workflow`)}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all text-sm font-medium"
+            >
+              🔗 Workflow Editor
+            </button>
+          </div>
           <h1 className="text-4xl font-bold text-white">{project.title}</h1>
           <p className="mt-2 text-slate-400">{project.description}</p>
         </div>
@@ -205,16 +284,30 @@ export default function ProjectDetailPage({ params }: Props) {
                 <div className="space-y-4 max-h-96 overflow-y-auto">
                   {project.scenes.map((scene, sceneIdx) => (
                     <div key={scene.id}>
-                      <h3 className="text-sm font-semibold text-cyan-400 mb-2">
-                        Scene {sceneIdx + 1}: {scene.title}
-                      </h3>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-cyan-400">
+                          Scene {sceneIdx + 1}: {scene.title}
+                        </h3>
+                        <label className="text-xs bg-purple-500/30 text-purple-300 hover:bg-purple-500/40 px-2 py-1 rounded cursor-pointer transition-all">
+                          📸 Ref Image
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadImage(scene.id, file);
+                            }}
+                          />
+                        </label>
+                      </div>
                       <div className="space-y-2 ml-2">
                         {scene.shots.map((shot, shotIdx) => (
                           <div
                             key={shot.id}
                             className="rounded-lg border border-slate-700 bg-slate-900/50 p-3 text-sm"
                           >
-                            <div className="flex items-start justify-between">
+                            <div className="flex items-start justify-between mb-2">
                               <div className="flex-1">
                                 <div className="font-mono text-slate-400">
                                   Shot {shotIdx + 1}
@@ -237,6 +330,21 @@ export default function ProjectDetailPage({ params }: Props) {
                               >
                                 {shot.status}
                               </div>
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => handleGenerateShot(shot.id)}
+                                disabled={shot.status === "running" || shot.status === "done"}
+                                className="flex-1 rounded px-2 py-1 text-xs bg-blue-500/30 text-blue-300 hover:bg-blue-500/40 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed transition-all"
+                              >
+                                Generate
+                              </button>
+                              <button
+                                onClick={() => handleDeleteShot(shot.id)}
+                                className="flex-1 rounded px-2 py-1 text-xs bg-red-500/30 text-red-300 hover:bg-red-500/40 transition-all"
+                              >
+                                Delete
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -268,18 +376,54 @@ export default function ProjectDetailPage({ params }: Props) {
                 {generationProgress.stitch_complete ? "Film" : "Preview"}
               </h2>
 
-              {generationProgress.stitch_start ? (
+              {generationProgress.stitch_start || generating ? (
                 // Generation in progress
                 <div className="space-y-4">
-                  <div className="rounded-lg bg-slate-900 aspect-video flex items-center justify-center flex-col gap-4 p-6">
+                  <div className="rounded-lg bg-slate-900 aspect-video flex items-center justify-center flex-col gap-6 p-6">
                     <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-700 border-t-cyan-500" />
-                    <div className="text-center">
-                      <p className="text-white font-semibold">
-                        {generationProgress.stitch_progress?.message || "Generating..."}
-                      </p>
+
+                    <div className="w-full space-y-3">
+                      <div className="text-center">
+                        <p className="text-white font-semibold text-lg">
+                          {generationProgress.stitch_complete
+                            ? "✓ Film Complete"
+                            : generationProgress.stitch_start
+                            ? "Stitching shots..."
+                            : "Generating shots..."}
+                        </p>
+                      </div>
+
+                      {/* Progress bar */}
+                      {project.total_shots > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs text-slate-400">
+                            <span>Progress</span>
+                            <span>
+                              {Object.keys(generationProgress).filter(k => k.startsWith("shot_")).length}/{project.total_shots}
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="bg-gradient-to-r from-cyan-500 to-blue-500 h-full transition-all duration-300"
+                              style={{
+                                width: `${
+                                  (Object.keys(generationProgress).filter(k => k.startsWith("shot_")).length / project.total_shots) * 100
+                                }%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Current shot info */}
                       {generationProgress.shot_progress && (
-                        <p className="text-sm text-slate-400 mt-2">
+                        <p className="text-sm text-slate-300 text-center">
                           {generationProgress.shot_progress.message}
+                        </p>
+                      )}
+                      {generationProgress.stitch_progress && (
+                        <p className="text-sm text-slate-300 text-center">
+                          {generationProgress.stitch_progress.message}
                         </p>
                       )}
                     </div>

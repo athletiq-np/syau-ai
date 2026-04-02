@@ -1,19 +1,24 @@
 import asyncio
+import json
 import structlog
 import logging
 from contextlib import asynccontextmanager
+from uuid import UUID
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
+from core.redis import get_redis
 from api.routes import jobs, models, projects, planning
 from websocket.manager import manager
 from websocket.pubsub import listen_for_job_events
 from services.job_service import enrich_with_urls
 from services.job_service import get_job, reconcile_stale_jobs
 from core.database import SessionLocal
-from storage.minio import ensure_bucket_exists
+from storage.minio import ensure_bucket_exists, get_presigned_url
+from models.project import Project
+from tasks.tunnel_monitor import start_tunnel_monitor, stop_tunnel_monitor
 
 
 # --- Logging setup ---
@@ -62,13 +67,25 @@ async def lifespan(app: FastAPI):
     # Start Redis pub/sub listener
     pubsub_task = asyncio.create_task(listen_for_job_events())
 
+    # Start tunnel health monitor
+    tunnel_monitor_task = await start_tunnel_monitor()
+
     yield
+
+    # Shutdown
+    if tunnel_monitor_task:
+        tunnel_monitor_task.cancel()
+        try:
+            await tunnel_monitor_task
+        except asyncio.CancelledError:
+            pass
 
     pubsub_task.cancel()
     try:
         await pubsub_task
     except asyncio.CancelledError:
         pass
+    stop_tunnel_monitor()
     log.info("shutdown")
 
 
@@ -151,45 +168,68 @@ async def ws_job(websocket: WebSocket, job_id: str):
 @app.websocket("/ws/projects/{project_id}")
 async def ws_project(websocket: WebSocket, project_id: str):
     """WebSocket for project-level events (generation progress, shot status, etc.)"""
-    from core.redis import get_redis
-    import json as json_module
-
     await websocket.accept()
-    redis = get_redis()
-    pubsub = redis.pubsub()
-    channel = f"project_events:{project_id}"
-    pubsub.subscribe(channel)
+    pubsub = None
+    loop = asyncio.get_running_loop()
 
     try:
         # Send initial project state
         db = SessionLocal()
         try:
-            from uuid import UUID
-            from schemas.project import ProjectDetailResponse
-            project = db.query(__import__("models.project", fromlist=["Project"]).Project).filter(
-                __import__("models.project", fromlist=["Project"]).Project.id == UUID(project_id)
-            ).first()
+            project = db.query(Project).filter(Project.id == UUID(project_id)).first()
             if project:
                 await websocket.send_json({
                     "type": "init",
                     "project_id": project_id,
                     "status": project.status,
                     "total_shots": project.total_shots,
+                    "output_url": get_presigned_url(project.output_key) if project.output_key else None,
                 })
         finally:
             db.close()
 
-        # Listen for project events from Redis pub/sub
-        for message in pubsub.listen():
-            if message["type"] == "message":
-                try:
-                    data = json_module.loads(message["data"])
-                    await websocket.send_json(data)
-                except Exception as e:
-                    log.warning("ws_project_message_error", error=str(e))
+        redis = get_redis()
+        pubsub = redis.pubsub()
+        await loop.run_in_executor(None, pubsub.subscribe, f"project_events:{project_id}")
+
+        async def recv_client():
+            while True:
+                await websocket.receive_text()
+
+        async def forward_project_events():
+            while True:
+                message = await loop.run_in_executor(
+                    None,
+                    lambda: pubsub.get_message(ignore_subscribe_messages=True, timeout=0.5),
+                )
+                if message is None:
+                    await asyncio.sleep(0.05)
+                    continue
+                if message["type"] != "message":
+                    continue
+
+                payload = json.loads(message["data"])
+                output_key = payload.get("output_key")
+                if output_key:
+                    payload["output_url"] = get_presigned_url(output_key)
+                await websocket.send_json(payload)
+
+        client_task = asyncio.create_task(recv_client())
+        forward_task = asyncio.create_task(forward_project_events())
+        done, pending = await asyncio.wait(
+            {client_task, forward_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+        for task in done:
+            task.result()
 
     except WebSocketDisconnect:
         pass
     finally:
-        pubsub.unsubscribe(channel)
-        pubsub.close()
+        if pubsub is not None:
+            try:
+                await loop.run_in_executor(None, pubsub.close)
+            except Exception:
+                pass

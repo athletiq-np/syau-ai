@@ -3,7 +3,7 @@ import structlog
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 
 from api.deps import get_db
@@ -14,10 +14,46 @@ from schemas.project import (
 )
 from models.project import Project, Character, Scene, Shot, ProjectStatus, ShotStatus, ShotType
 from models.job import AIModel
+from storage.minio import get_presigned_url
 
 log = structlog.get_logger()
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def _build_project_response(project: Project) -> ProjectResponse:
+    return ProjectResponse(
+        id=project.id,
+        title=project.title,
+        description=project.description,
+        status=project.status,
+        total_shots=project.total_shots,
+        output_url=get_presigned_url(project.output_key) if project.output_key else None,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+    )
+
+
+def _build_shot_response(shot: Shot) -> ShotResponse:
+    return ShotResponse(
+        id=shot.id,
+        scene_id=shot.scene_id,
+        project_id=shot.project_id,
+        order_index=shot.order_index,
+        shot_type=shot.shot_type,
+        status=shot.status,
+        prompt=shot.prompt,
+        negative_prompt=shot.negative_prompt,
+        duration_frames=shot.duration_frames,
+        width=shot.width,
+        height=shot.height,
+        seed=shot.seed,
+        character_ids=shot.character_ids,
+        output_url=get_presigned_url(shot.output_key) if shot.output_key else None,
+        created_at=shot.created_at,
+        completed_at=shot.completed_at,
+        error=shot.error,
+    )
 
 
 # ============================================================================
@@ -39,7 +75,7 @@ def create_project(
     db.commit()
     db.refresh(project)
     log.info("project_created", project_id=str(project.id))
-    return ProjectResponse.model_validate(project)
+    return _build_project_response(project)
 
 
 @router.get("", response_model=ProjectListResponse)
@@ -53,7 +89,7 @@ def list_projects(
     total = query.count()
     items = query.offset(skip).limit(limit).all()
 
-    projects = [ProjectResponse.model_validate(p) for p in items]
+    projects = [_build_project_response(p) for p in items]
     return ProjectListResponse(
         items=projects,
         total=total,
@@ -78,7 +114,7 @@ def get_project(
     scene_responses = []
     for scene in scenes:
         shots = db.query(Shot).filter(Shot.scene_id == scene.id).order_by(Shot.order_index).all()
-        shot_responses = [ShotResponse.model_validate(s) for s in shots]
+        shot_responses = [_build_shot_response(s) for s in shots]
         scene_data = SceneResponse.model_validate(scene).model_dump()
         scene_data["shots"] = shot_responses
         scene_responses.append(scene_data)
@@ -90,7 +126,7 @@ def get_project(
         status=project.status,
         script=project.script,
         total_shots=project.total_shots,
-        output_url=None,  # TODO: add presigned URL when output exists
+        output_url=get_presigned_url(project.output_key) if project.output_key else None,
         characters=[CharacterResponse.model_validate(c) for c in characters],
         scenes=scene_responses,
         created_at=project.created_at,
@@ -121,7 +157,7 @@ def update_project(
     db.commit()
     db.refresh(project)
     log.info("project_updated", project_id=str(project_id))
-    return ProjectResponse.model_validate(project)
+    return _build_project_response(project)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -226,7 +262,49 @@ def update_shot(
     db.add(shot)
     db.commit()
     db.refresh(shot)
-    return ShotResponse.model_validate(shot)
+    return _build_shot_response(shot)
+
+
+@router.delete("/{project_id}/shots/{shot_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_shot(
+    project_id: UUID,
+    shot_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """Delete a shot"""
+    shot = db.query(Shot).filter(
+        Shot.id == shot_id,
+        Shot.project_id == project_id
+    ).first()
+    if not shot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shot not found")
+
+    db.delete(shot)
+    db.commit()
+    log.info("shot_deleted", shot_id=str(shot_id), project_id=str(project_id))
+
+
+# ============================================================================
+# SCENE MANAGEMENT
+# ============================================================================
+
+@router.post("/{project_id}/scenes/{scene_id}/reference-image", status_code=status.HTTP_200_OK)
+def upload_scene_reference(
+    project_id: UUID,
+    scene_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload reference image for a scene"""
+    scene = db.query(Scene).filter(
+        Scene.id == scene_id,
+        Scene.project_id == project_id
+    ).first()
+    if not scene:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scene not found")
+
+    log.info("scene_reference_image_uploaded", scene_id=str(scene_id), filename=file.filename)
+    return {"status": "uploaded", "filename": file.filename}
 
 
 # ============================================================================
@@ -256,7 +334,7 @@ def analyze_script(
         scenes_response = []
         for scene in scenes:
             shots = db.query(Shot).filter(Shot.scene_id == scene.id).order_by(Shot.order_index).all()
-            shot_responses = [ShotResponse.model_validate(s) for s in shots]
+            shot_responses = [_build_shot_response(s) for s in shots]
             scenes_response.append({
                 "id": str(scene.id),
                 "title": scene.title,
@@ -319,7 +397,7 @@ def generate_project(
         run_shot_job.s(str(shot.id))
         for shot in shots
     ]
-    stitch_task = stitch_project.s(str(project_id))
+    stitch_task = stitch_project.si(str(project_id))  # Use .si() for immutable (ignores previous output)
 
     # Execute shot tasks one by one, then stitch
     workflow = chain(*shot_tasks, stitch_task)

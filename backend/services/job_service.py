@@ -14,7 +14,7 @@ import structlog
 log = structlog.get_logger()
 
 
-def create_job(db: Session, data: JobCreate) -> Job:
+def create_job(db: Session, data: JobCreate, user_id: str = "anonymous") -> Job:
     model = db.scalar(
         select(AIModel).where(
             AIModel.name == data.model,
@@ -26,6 +26,7 @@ def create_job(db: Session, data: JobCreate) -> Job:
         raise ValueError(f"Model '{data.model}' is not enabled for job type '{data.type}'")
 
     job = Job(
+        user_id=user_id,
         type=data.type,
         model=data.model,
         prompt=data.prompt,
@@ -36,7 +37,7 @@ def create_job(db: Session, data: JobCreate) -> Job:
     db.add(job)
     db.commit()
     db.refresh(job)
-    log.info("job_created", job_id=str(job.id), type=job.type, model=job.model)
+    log.info("job_created", job_id=str(job.id), user_id=user_id, type=job.type, model=job.model)
     return job
 
 
@@ -50,9 +51,15 @@ def list_jobs(
     page_size: int = 20,
     type: Optional[str] = None,
     status: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> tuple[list[Job], int]:
     stmt = select(Job)
     count_stmt = select(func.count()).select_from(Job)
+
+    # Filter by user_id if provided (own jobs only)
+    if user_id:
+        stmt = stmt.where(Job.user_id == user_id)
+        count_stmt = count_stmt.where(Job.user_id == user_id)
 
     if type:
         stmt = stmt.where(Job.type == type)

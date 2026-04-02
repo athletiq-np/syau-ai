@@ -22,6 +22,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(64), nullable=False, index=True, default="anonymous")
     status = Column(SAEnum(JobStatus), nullable=False, default=JobStatus.pending, index=True)
     type = Column(String(32), nullable=False, index=True)
     model = Column(String(64), nullable=False)

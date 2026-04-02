@@ -185,6 +185,71 @@ services:
       - ./.docker-data/outputs:/data/outputs
       - ./.docker-data/cache:/data/cache
 
+  vllm:
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    ports:
+      - "8100:8000"
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - ./.docker-data/vllm-models:/root/.cache/huggingface
+    command:
+      - --model
+      - Qwen/Qwen2.5-7B-Instruct
+      - --port
+      - "8000"
+      - --gpu-memory-utilization
+      - "0.8"
+      - --max-model-len
+      - "4096"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  comfyui:
+    image: ghcr.io/nvidia/cuda:11.8.0-devel-ubuntu22.04
+    restart: unless-stopped
+    ports:
+      - "8188:8188"
+    environment:
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./.docker-data/comfyui:/ComfyUI
+      - ./.docker-data/comfyui-models:/ComfyUI/models
+      - ./.docker-data/comfyui-outputs:/ComfyUI/output
+    working_dir: /ComfyUI
+    command: >
+      bash -c "
+      apt-get update &&
+      apt-get install -y python3-pip git &&
+      if [ ! -d '.git' ]; then git clone https://github.com/comfyanonymous/ComfyUI.git . ; fi &&
+      pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 &&
+      pip install -q -r requirements.txt &&
+      python main.py --listen 0.0.0.0 --port 8188
+      "
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8188/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 networks:
   default:
     name: syauai-network
